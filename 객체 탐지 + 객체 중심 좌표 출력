@@ -1,0 +1,65 @@
+import numpy as np
+import cv2
+import tensorflow as tf
+from tensorflow.keras.models import load_model
+import torch  
+import pyautogui
+import keyboard
+import time
+
+# YOLOv5 모델 로드
+model_yolo = torch.hub.load('ultralytics/yolov5', 'custom', path='C:/python/best.pt')
+
+output_path = 'D:/data/test1.avi'
+fps = 20
+fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+out = None
+
+x1, y1, x2, y2 = 0, 139, 1600, 1040  # 예시 좌표 
+
+while True:
+    screenshot = pyautogui.screenshot(region=(x1, y1, x2 - x1, y2 - y1))
+
+    frame = np.array(screenshot)
+
+    # YOLOv5 추론
+    results = model_yolo(frame)
+    rendered_frame = results.render()[0]  # 결과를 프레임에 렌더링
+
+    frame = cv2.cvtColor(np.array(rendered_frame), cv2.COLOR_RGB2BGR)
+
+    # VideoWriter 객체 초기화 (첫 프레임에서만)
+    if out is None:
+        h, w = frame.shape[:2]
+        out = cv2.VideoWriter(output_path, fourcc, fps, (w, h))
+
+    # 프레임을 영상으로 저장
+    out.write(frame)
+
+    # 객체 탐지 결과 처리
+    detections = results.xyxy[0].cpu().numpy()  # 탐지 결과를 numpy 배열로 변환
+
+    for detection in detections:
+        class_id, score, x_min, y_min, x_max, y_max = detection
+        class_id = int(class_id)
+        score = float(score)
+        x_min, y_min, x_max, y_max = int(x_min), int(y_min), int(x_max), int(y_max)
+
+        # 객체 중심 좌표 계산
+        center_x = (x_min + x_max) // 2
+        center_y = (y_min + y_max) // 2
+
+        # 객체 정보 출력
+        print(f"Center: ({center_x}, {center_y})")
+
+    cv2.imshow('Processed Screen', np.array(pyautogui.screenshot(region=(0, 0, 100, 100))))
+
+    keyValue = cv2.waitKey(1)
+
+    if keyValue == ord('q'):
+        break
+
+# 기존 코드
+
+out.release()
+cv2.destroyAllWindows()
