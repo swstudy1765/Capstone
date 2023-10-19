@@ -1,0 +1,81 @@
+import numpy as np
+import cv2
+import tensorflow as tf
+from tensorflow.keras.models import load_model
+import pyautogui
+import keyboard
+import time
+
+x1, y1, x2, y2 = 600, 550, 1050, 700  # 예시 좌표 (상황에 따라 변경)
+
+model_path='C:\python\ets2_lane_navigation2_final.h5'
+model=load_model(model_path)
+
+while True:
+    # 지정한 영역의 스크린샷을 캡처합니다.
+    screenshot = pyautogui.screenshot(region=(x1, y1, x2 - x1, y2 - y1))
+
+    # 이미지를 numpy array로 변환합니다.
+    frame = np.array(screenshot)
+    
+    # OpenCV는 기본적으로 BGR 형식을 사용하므로 RGB 형식으로 변환합니다.
+    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+
+    grey_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    blurred_frame = cv2.GaussianBlur(grey_frame, (5, 5), 0)
+    edges_frame = cv2.Canny(blurred_frame, 50, 150)
+    resized_frame = cv2.resize(edges_frame, (450,150))
+    resized_frame=resized_frame/255
+
+
+    cv2.imshow('Processed Screen', resized_frame)
+
+    keValue=cv2.waitKey(1)
+
+    if keValue==ord('q'):
+        break
+
+    x = np.asarray([resized_frame])
+    x = np.expand_dims(x, axis=-1)  # 채널 차원 추가
+    x = np.repeat(x, 3, axis=-1)  # 3채널로 확장
+    steering_angle = int(model.predict(x)[0])
+    print('predict angle:',steering_angle)
+
+    if steering_angle > 100:
+        keyboard.press('W')
+        keyboard.press('D')
+        time.sleep(0.1)
+        keyboard.press('A')
+        time.sleep(0.1)
+        keyboard.press('S')
+        time.sleep(0.1)
+        keyboard.release('W')
+        keyboard.release('D')
+        keyboard.release('A')
+        keyboard.release('S')
+    elif steering_angle < 65:
+        keyboard.press('W')
+        keyboard.press('A')
+        time.sleep(0.1)
+        keyboard.press('D')
+        time.sleep(0.1)
+        keyboard.press('S')
+        time.sleep(0.1)
+        keyboard.release('W')
+        keyboard.release('A')
+        keyboard.release('D')
+        keyboard.release('S')
+    elif 65 <= steering_angle <= 100:
+        keyboard.press('W')
+        time.sleep(0.1)
+        keyboard.press('S')
+        time.sleep(0.1)
+        keyboard.release('W')
+        keyboard.release('S')
+
+    keyboard.press('S')
+    time.sleep(0.085)
+    keyboard.release('S')
+    
+cv2.destroyAllWindows()
+
