@@ -1,0 +1,106 @@
+import numpy as np
+import cv2
+import tensorflow as tf
+from tensorflow.keras.models import load_model
+import torch  
+import pyautogui
+import keyboard
+import time
+
+output_path = 'D:/test/test2.mp4'
+fps = 5
+fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+out = None
+
+x1, y1, x2, y2 = 600, 550, 1050, 700
+
+while True:
+    screenshot2 = pyautogui.screenshot(region=(x1, y1, x2 - x1, y2 - y1))
+    frame2 = np.array(screenshot2)
+    frame2 = cv2.cvtColor(frame2, cv2.COLOR_RGB2BGR)
+        
+    h, w = frame2.shape[:2]
+
+    # 가운데에 빨간색 점 추가
+    center_x = w // 2
+    center_y = h // 2
+    cv2.circle(frame2, (center_x, center_y), 5, (0, 0, 255), -1)
+
+    # 빨간색 점에 빨간색 가로선 추가
+    cv2.line(frame2, (0, center_y), (w, center_y), (0, 0, 255), 2)
+
+    grey_frame = cv2.cvtColor(frame2, cv2.COLOR_BGR2GRAY)
+    blurred_frame = cv2.GaussianBlur(grey_frame, (5, 5), 0)
+    edges_frame = cv2.Canny(blurred_frame, 50, 150)
+    lines = cv2.HoughLines(edges_frame, 1, np.pi / 180, 50)
+    
+    right_lines = []
+
+    if lines is not None:
+        for line in lines:
+            rho, theta = line[0]
+                
+            if 15 * np.pi / 180 < theta < 85 * np.pi / 180:
+                right_lines.append((rho, theta))
+                    
+    def compute_avg_line(lines):
+        avg_rho = np.mean([line[0] for line in lines])
+        avg_theta = np.mean([line[1] for line in lines])
+        return avg_rho, avg_theta
+
+    def draw_avg_line(white_image, rho, theta, color):
+        a = np.cos(theta)
+        b = np.sin(theta)
+        x0 = a * rho
+        y0 = b * rho
+        x1 = int(x0 + 1000 * (-b))
+        y1 = int(y0 + 1000 * (a))
+        x2 = int(x0 - 1000 * (-b))
+        y2 = int(y0 - 1000 * (a))
+        cv2.line(white_image, (x1, y1), (x2, y2), color, 2)
+            
+    if right_lines:
+        avg_right_rho, avg_right_theta = compute_avg_line(right_lines)
+        draw_avg_line(frame2, avg_right_rho, avg_right_theta, (0, 255, 0))
+
+        # 허프 선과 빨간색 가로선 교차점 계산
+        a1 = np.cos(avg_right_theta)
+        b1 = np.sin(avg_right_theta)
+        x01 = a1 * avg_right_rho
+        y01 = b1 * avg_right_rho
+
+        a2 = 0  # 기울기가 0인 가로선
+        b2 = 1
+        x02 = 0
+        y02 = center_y
+
+        # 두 선의 교차점 계산
+        det = a1 * b2 - a2 * b1
+        if det != 0:
+            intersection_x = int((b2 * x01 - b1 * x02) / det)
+            intersection_y = int((a1 * y02 - a2 * y01) / det)
+
+            # 교차점을 파란색 점으로 표시
+            cv2.circle(frame2, (intersection_x, intersection_y), 5, (255, 0, 0), -1)
+
+            # 빨간점과 파란점 간의 거리 계산
+            distance = np.sqrt((center_x - intersection_x)**2 + (center_y - intersection_y)**2)
+            
+            # 거리를 화면에 출력
+            cv2.putText(frame2, f"Distance: {distance:.2f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
+
+    cv2.imshow('White Image', frame2)
+    
+    if out is None:
+        h, w = frame2.shape[:2]
+        out = cv2.VideoWriter(output_path, fourcc, fps, (w, h))
+
+    out.write(frame2)
+
+    keyValue = cv2.waitKey(1)
+
+    if keyValue == ord('q'):
+        break
+
+out.release()
+cv2.destroyAllWindows()
