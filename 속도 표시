@@ -1,0 +1,98 @@
+import numpy as np
+import cv2
+import tensorflow as tf
+from tensorflow.keras.models import load_model
+import torch  
+import pyautogui
+import keyboard
+import time
+
+# YOLOv5 모델 로드
+model_yolo = torch.hub.load('ultralytics/yolov5', 'custom', path='C:/python/car_best.pt')
+model_speed = torch.hub.load('ultralytics/yolov5', 'custom', path='C:/python/speed2_best.pt')
+
+output_path = 'D:/test/test5.avi'
+fps = 5
+fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+out = None
+
+x1, y1, x2, y2 = 160, 90, 1760, 990  # 예시 좌표 
+speed_x1, speed_y1, speed_x2, speed_y2 = 910, 750, 1010, 850
+
+while True:
+    screenshot = pyautogui.screenshot(region=(x1, y1, x2 - x1, y2 - y1))
+    screenshot2 = pyautogui.screenshot(region=(speed_x1, speed_y1, speed_x2 - speed_x1, speed_y2 - speed_y1))
+
+    frame = np.array(screenshot)
+    frame2 = np.array(screenshot2)
+
+    # YOLOv5 추론
+    results = model_yolo(frame)
+    results2 = model_speed(frame2)
+    rendered_frame2 = results2.render()[0]  # 결과를 프레임에 렌더링
+    frame2 = cv2.cvtColor(np.array(rendered_frame2), cv2.COLOR_RGB2BGR)
+
+    # 객체 탐지 결과 처리
+    detections = results.xyxy[0].cpu().numpy()  # 탐지 결과를 numpy 배열로 변환
+    detections2 = results2.xyxy[0].cpu().numpy()  # 탐지 결과를 numpy 배열로 변환
+
+    for pred in results2.xyxy[0]:  # 이미지가 1개일 경우, results.xyxy[0] 사용
+
+        # Create white image
+        white_image = np.ones((560, 860, 3), np.uint8) * 255
+
+        # Load driver image
+        driver_image = cv2.imread('driver.jpg')
+        driver_height, driver_width, _ = driver_image.shape
+
+        # Calculate position to place driver image
+        driver_x = (white_image.shape[1] - driver_width) // 2
+        driver_y = white_image.shape[0] - driver_height
+
+        # Overlay driver image on white image
+        white_image[driver_y:driver_y+driver_height, driver_x:driver_x+driver_width] = driver_image
+
+        x_min, y_min, x_max, y_max, conf, cls_tensor = pred
+        speed=int(cls_tensor.item())+10
+        cv2.putText(white_image, f'Speed:{speed}km/s', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2)
+
+    for detection in detections:
+        class_id, score, x_min, y_min, x_max, y_max = detection
+        class_id = int(class_id)
+        score = float(score)
+        x_min, y_min, x_max, y_max = int(x_min), int(y_min), int(x_max), int(y_max)
+
+        # 객체 중심 좌표 계산
+        center_x = (x_min + x_max) // 2
+        center_y = (y_min + y_max) // 2
+
+        # Load car image
+        car_image = cv2.imread('car.jpg')
+        car_height, car_width, _ = car_image.shape
+
+        # Calculate position to place car image
+        car_x = center_x - car_width // 2
+        car_y = center_y - car_height // 2
+
+        # Overlay car image on white image
+        white_image[car_y:car_y+car_height, car_x:car_x+car_width] = car_image
+
+    # 화면 보여주기
+    cv2.imshow('White Image', white_image)
+
+    # VideoWriter 객체 초기화 (첫 프레임에서만)
+    if out is None:
+        h, w = white_image.shape[:2]
+        out = cv2.VideoWriter(output_path, fourcc, fps, (w, h))
+
+    # 프레임을 영상으로 저장
+    out.write(white_image)
+
+    keyValue = cv2.waitKey(1)
+
+    if keyValue == ord('q'):
+        break
+
+# 기존 코드
+out.release()
+cv2.destroyAllWindows()
