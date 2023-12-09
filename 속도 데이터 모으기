@@ -1,0 +1,32 @@
+import cv2
+import numpy as np
+import pyautogui
+import keyboard
+import time
+
+# 캡처할 영역의 좌상단 좌표와 우하단 좌표를 설정합니다.
+x1, y1, x2, y2 = 160, 90, 1760, 990  # 예시 좌표 (상황에 따라 변경)
+
+# 사진 저장 변수
+i=0
+# 폴더 경로 설정
+save_path = "D:/data/"
+
+while True:
+    # 지정한 영역의 스크린샷을 캡처합니다.
+    screenshot = pyautogui.screenshot(region=(x1, y1, x2 - x1, y2 - y1))
+
+    # 이미지를 numpy array로 변환합니다.
+    frame = np.array(screenshot)
+    
+    cv2.imshow('Screen', frame)
+    
+    keyValue=cv2.waitKey(10)
+    if keyValue==ord('q'):
+        break
+    if keyboard.is_pressed('up'):
+        cv2.imwrite(f"{save_path}speed_{i}.jpg", frame)
+        i+=1
+
+# 리소스를 정리합니다.
+cv2.destroyAllWindows()
